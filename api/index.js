@@ -12,14 +12,19 @@ const MIN_WEIGHT_KG = 0.01;
 const ALLOW_NEGATIVE = false;
 
 // ─── Validate env ──────────────────────────────────────────────────────────
-if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) {
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY;
+if (!SUPABASE_URL || !SUPABASE_KEY) {
   console.error("WARNING: SUPABASE_URL and SUPABASE_SERVICE_KEY are not set. API calls will fail.");
 }
 
 // ─── Supabase ──────────────────────────────────────────────────────────────
+// Use placeholder values so createClient doesn't throw on missing env vars.
+// Real queries will fail gracefully (Supabase returns an error) rather than
+// crashing the entire module.
 const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
+  SUPABASE_URL  || "https://placeholder.supabase.co",
+  SUPABASE_KEY  || "placeholder-anon-key"
 );
 
 // ─── App ───────────────────────────────────────────────────────────────────
