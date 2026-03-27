@@ -79,7 +79,7 @@ test.describe("Imdaad POC — E2E Tests", () => {
   // ── 7. Add Customer modal opens and validates ───────────────────────────────
   test("add customer modal opens and validates required fields", async ({ page }) => {
     await page.goto(BASE, { waitUntil: "networkidle" });
-    await page.click("button:has-text('+ Customer')");
+    await page.click("button[onclick='openAddCustomer()']");
     await expect(page.locator("#addModal")).toHaveClass(/open/);
 
     // Submit without filling in fields → validation error
