@@ -2,7 +2,7 @@
 const { test, expect } = require("@playwright/test");
 
 // Test against the live Vercel deployment
-const BASE = process.env.TEST_URL || "https://imdaad-fzf7jmezd-mos-projects-25a7d23f.vercel.app";
+const BASE = process.env.TEST_URL || "https://imdaad-poc.vercel.app";
 
 test.describe("Imdaad POC — E2E Tests", () => {
 
@@ -107,23 +107,27 @@ test.describe("Imdaad POC — E2E Tests", () => {
 
   // ── 9. Weight estimate shows in collection modal ────────────────────────────
   test("collection modal shows live charge estimate", async ({ page }) => {
-    await page.goto(BASE, { waitUntil: "networkidle" });
-    // Wait for customers to load (so the select has options)
-    await page.waitForFunction(() => {
-      const sel = document.getElementById("col-customer");
-      return sel && sel.options.length > 1;
-    }, { timeout: 10000 }).catch(() => {});
-
+    await page.goto(BASE, { waitUntil: "domcontentloaded" });
+    // Open collection modal
     await page.click("button:has-text('New Collection')");
+    await expect(page.locator("#collectionModal")).toHaveClass(/open/, { timeout: 5000 });
+
+    // Check if there are customers available
     const sel = page.locator("#col-customer");
+    await page.waitForTimeout(1000); // allow populateCustomerSelect to run
     const count = await sel.locator("option").count();
 
     if (count > 1) {
       await sel.selectOption({ index: 1 });
       await page.fill("#col-weight", "5");
-      await expect(page.locator("#colEstimate")).toBeVisible();
+      await expect(page.locator("#colEstimate")).toBeVisible({ timeout: 3000 });
       await expect(page.locator("#colEstimateVal")).toContainText("AED");
+    } else {
+      // No customers yet - just verify the modal form elements are present
+      await expect(page.locator("#col-weight")).toBeVisible();
+      await expect(page.locator("#col-collector")).toBeVisible();
     }
+    await page.click("#collectionModal .modal-close");
   });
 
   // ── 10. Top-up modal opens from customers panel ─────────────────────────────
