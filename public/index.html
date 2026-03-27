@@ -373,11 +373,15 @@ tbody tr:hover td { background: var(--surface-2); }
 
     <nav class="sidebar-nav">
       <div class="nav-label">OPERATIONS</div>
-      <button class="nav-item active" onclick="switchPanel('transactions', this)">
+      <button class="nav-item active" id="nav-transactions" onclick="switchPanel('transactions', this)">
         <span class="nav-icon">📋</span> Transactions
       </button>
-      <button class="nav-item" onclick="switchPanel('customers', this)">
+      <button class="nav-item" id="nav-customers" onclick="switchPanel('customers', this)">
         <span class="nav-icon">👤</span> Customers
+      </button>
+      <div class="nav-label" style="margin-top:14px">ANALYTICS</div>
+      <button class="nav-item" id="nav-dashboard" onclick="switchPanel('dashboard', this)">
+        <span class="nav-icon">📊</span> Dashboard
       </button>
     </nav>
 
@@ -442,6 +446,7 @@ tbody tr:hover td { background: var(--surface-2); }
             <option value="paid">Paid</option>
             <option value="overdraft">Overdraft</option>
           </select>
+          <button class="btn btn-ghost btn-sm" onclick="exportCsvTx()" title="Export transactions to CSV">⬇ Export CSV</button>
         </div>
 
         <div class="table-card">
@@ -495,6 +500,7 @@ tbody tr:hover td { background: var(--surface-2); }
             <span class="search-icon">🔍</span>
             <input class="search" id="cxSearch" placeholder="Search name or phone…" oninput="filterCx()">
           </div>
+          <button class="btn btn-ghost btn-sm" onclick="exportCsvCx()" title="Export customers to CSV">⬇ Export CSV</button>
         </div>
 
         <div class="table-card">
@@ -507,7 +513,7 @@ tbody tr:hover td { background: var(--surface-2); }
                   <th>QR ID</th>
                   <th>WALLET BALANCE</th>
                   <th>MEMBER SINCE</th>
-                  <th></th>
+                  <th style="min-width:220px"></th>
                 </tr>
               </thead>
               <tbody id="cxBody">
@@ -519,6 +525,51 @@ tbody tr:hover td { background: var(--surface-2); }
         </div>
       </div>
 
+      <!-- ── Dashboard Panel ──────────────────────────────────────────────── -->
+      <div id="panel-dashboard" class="panel">
+
+        <div class="stats-grid" id="db-stats-grid">
+          <div class="stat-card">
+            <div class="stat-header"><span class="stat-label">Total Revenue</span><span class="stat-icon">💳</span></div>
+            <div class="stat-value green" id="db-revenue">—</div>
+            <div class="stat-sub">AED billed all-time</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-header"><span class="stat-label">Total Weight</span><span class="stat-icon">⚖️</span></div>
+            <div class="stat-value" id="db-weight">—</div>
+            <div class="stat-sub">Kilograms collected</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-header"><span class="stat-label">Collections</span><span class="stat-icon">📦</span></div>
+            <div class="stat-value blue" id="db-collections">—</div>
+            <div class="stat-sub">Total all-time</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-header"><span class="stat-label">Today</span><span class="stat-icon">📅</span></div>
+            <div class="stat-value amber" id="db-today">—</div>
+            <div class="stat-sub">Collections today</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-header"><span class="stat-label">Customers</span><span class="stat-icon">👥</span></div>
+            <div class="stat-value blue" id="db-customers">—</div>
+            <div class="stat-sub">Registered accounts</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-header"><span class="stat-label">Wallet Funds</span><span class="stat-icon">💰</span></div>
+            <div class="stat-value green" id="db-funds">—</div>
+            <div class="stat-sub">Total across all wallets</div>
+          </div>
+        </div>
+
+        <div class="table-card" style="padding:20px 24px 24px">
+          <div style="font-size:13px;font-weight:600;color:var(--text-dim);letter-spacing:.5px;margin-bottom:18px">REVENUE — LAST 7 DAYS (AED)</div>
+          <div style="position:relative;height:160px;display:flex;align-items:flex-end;gap:10px" id="dbChart">
+            <div class="empty-state" style="width:100%;font-size:13px;color:var(--text-muted)">Loading chart…</div>
+          </div>
+        </div>
+
+      </div>
+
     </div><!-- /content -->
   </div><!-- /main -->
 </div><!-- /shell -->
@@ -528,7 +579,10 @@ tbody tr:hover td { background: var(--surface-2); }
   <div class="modal">
     <div class="modal-header">
       <span class="modal-title">Digital Receipt</span>
-      <button class="modal-close" onclick="closeModal('receiptModal')">✕</button>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn btn-ghost btn-sm" onclick="printReceipt()" title="Print receipt">🖨 Print</button>
+        <button class="modal-close" onclick="closeModal('receiptModal')">✕</button>
+      </div>
     </div>
     <div class="modal-body" id="receiptBody">
       <div class="empty-state"><span class="spinner"></span></div>
@@ -642,14 +696,31 @@ tbody tr:hover td { background: var(--surface-2); }
   </div>
 </div>
 
+<!-- ── Customer History Modal ──────────────────────────────────────────────── -->
+<div class="modal-overlay" id="historyModal" onclick="closeOnOverlay(event,'historyModal')">
+  <div class="modal" style="max-width:700px">
+    <div class="modal-header">
+      <span class="modal-title" id="historyTitle">Transaction History</span>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn btn-ghost btn-sm" onclick="exportCsvCustomer()" id="historyExportBtn">⬇ Export CSV</button>
+        <button class="modal-close" onclick="closeModal('historyModal')">✕</button>
+      </div>
+    </div>
+    <div class="modal-body" id="historyBody" style="padding:0">
+      <div class="empty-state"><span class="spinner"></span></div>
+    </div>
+  </div>
+</div>
+
 <script>
 // ─── Config ──────────────────────────────────────────────────────────────────
 const API = window.location.origin + "/api";
 
 let allTx = [];
 let allCx = [];
-let topupTarget = null;
-let pricePerKg  = 2.50;
+let topupTarget     = null;
+let historyTarget   = null;
+let pricePerKg      = 2.50;
 
 // ─── Boot ─────────────────────────────────────────────────────────────────────
 async function boot() {
@@ -794,7 +865,8 @@ function renderCxTable(rows) {
       <td class="text-dim" style="font-size:12.5px">${since}</td>
       <td style="white-space:nowrap">
         <button class="btn btn-ghost btn-sm" style="margin-right:4px" onclick="openCollection('${c.id}')">⚡ Bill</button>
-        <button class="btn btn-ghost btn-sm" onclick="openTopup('${c.id}','${esc(c.name)}',${bal})">+ Top Up</button>
+        <button class="btn btn-ghost btn-sm" style="margin-right:4px" onclick="openTopup('${c.id}','${esc(c.name)}',${bal})">+ Top Up</button>
+        <button class="btn btn-ghost btn-sm" onclick="openCustomerHistory('${c.id}','${esc(c.name)}')">📋 History</button>
       </td>
     </tr>`;
   }).join("");
@@ -1036,6 +1108,116 @@ function switchPanel(name, el) {
   el.classList.add("active");
   document.getElementById("panel-" + name).classList.add("active");
   document.getElementById("topbarTitle").textContent = el.querySelector(".nav-icon").nextSibling.textContent.trim();
+  if (name === "dashboard") loadDashboard();
+}
+
+// ─── Dashboard ────────────────────────────────────────────────────────────────
+async function loadDashboard() {
+  try {
+    const r = await fetch(`${API}/stats`);
+    const d = await r.json();
+    document.getElementById("db-revenue").textContent     = "AED " + parseFloat(d.totalRevenue).toFixed(2);
+    document.getElementById("db-weight").textContent      = parseFloat(d.totalWeight).toFixed(1) + " kg";
+    document.getElementById("db-collections").textContent = d.totalCollections;
+    document.getElementById("db-today").textContent       = d.todayCollections;
+    document.getElementById("db-customers").textContent   = d.totalCustomers;
+    document.getElementById("db-funds").textContent       = "AED " + parseFloat(d.totalWalletFunds).toFixed(2);
+    renderDashboardChart(d.daily || []);
+  } catch(e) {
+    document.getElementById("dbChart").innerHTML = `<div style="color:var(--red);font-size:13px">Failed to load stats</div>`;
+  }
+}
+
+function renderDashboardChart(daily) {
+  const chart = document.getElementById("dbChart");
+  if (!daily.length) { chart.innerHTML = '<div style="color:var(--text-muted);font-size:13px">No data yet</div>'; return; }
+  const maxRev = Math.max(...daily.map(d => d.revenue), 1);
+  chart.innerHTML = daily.map(d => {
+    const pct   = Math.max(4, Math.round((d.revenue / maxRev) * 100));
+    const label = new Date(d.date).toLocaleDateString("en-GB", { weekday:"short", day:"numeric" });
+    const isToday = d.date === new Date().toISOString().slice(0,10);
+    return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;min-width:0">
+      <div style="font-size:10px;color:var(--text-muted);white-space:nowrap">AED ${parseFloat(d.revenue).toFixed(0)}</div>
+      <div style="width:100%;height:${pct}%;background:${isToday?'var(--blue)':'var(--surface-3)'};border-radius:4px 4px 0 0;border:1px solid ${isToday?'var(--blue-bright)':'var(--border-light)'};min-height:4px;transition:height .3s"></div>
+      <div style="font-size:10px;color:${isToday?'var(--blue-bright)':'var(--text-muted)'};white-space:nowrap;font-weight:${isToday?'600':'400'}">${label}</div>
+    </div>`;
+  }).join("");
+}
+
+// ─── CSV Export ───────────────────────────────────────────────────────────────
+function exportCsvTx() {
+  window.open(`${API}/collections/export`, "_blank");
+}
+
+function exportCsvCx() {
+  window.open(`${API}/customers/export`, "_blank");
+}
+
+function exportCsvCustomer() {
+  if (!historyTarget) return;
+  window.open(`${API}/collections/export?customerId=${historyTarget}`, "_blank");
+}
+
+// ─── Customer History ─────────────────────────────────────────────────────────
+async function openCustomerHistory(id, name) {
+  historyTarget = id;
+  document.getElementById("historyTitle").textContent = `History — ${name}`;
+  document.getElementById("historyBody").innerHTML = `<div class="empty-state"><span class="spinner"></span></div>`;
+  openModal("historyModal");
+
+  try {
+    const r = await fetch(`${API}/customers/${id}/transactions`);
+    const d = await r.json();
+    const txs = d.transactions || [];
+    if (!txs.length) {
+      document.getElementById("historyBody").innerHTML = `<div class="empty-state" style="padding:30px"><div class="empty-icon">📭</div><div class="empty-text">No collections yet</div></div>`;
+      return;
+    }
+    const rows = txs.map(t => {
+      const dt  = new Date(t.timestamp);
+      const bal = parseFloat(t.balance_after);
+      const balCls = bal < 0 ? "text-red" : bal < 10 ? "text-amber" : "text-green";
+      return `<tr>
+        <td><span class="mono text-dim" style="font-size:11px">${esc(t.invoice_id)}</span></td>
+        <td class="mono">${parseFloat(t.weight_kg).toFixed(2)} kg</td>
+        <td class="text-amber mono">AED ${parseFloat(t.amount).toFixed(2)}</td>
+        <td class="${balCls} mono">AED ${bal.toFixed(2)}</td>
+        <td><span class="badge badge-${t.status}">${t.status}</span></td>
+        <td class="text-dim" style="font-size:12px">${dt.toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"})} ${dt.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}</td>
+        <td><button class="btn btn-ghost btn-sm" onclick="showReceipt('${esc(t.invoice_id)}')">Receipt</button></td>
+      </tr>`;
+    }).join("");
+    document.getElementById("historyBody").innerHTML = `
+      <div style="overflow-x:auto">
+        <table>
+          <thead><tr><th>INVOICE</th><th>WEIGHT</th><th>CHARGED</th><th>WALLET AFTER</th><th>STATUS</th><th>DATE</th><th></th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      <div class="table-footer">${txs.length} collections · AED ${txs.reduce((s,t)=>s+(parseFloat(t.amount)||0),0).toFixed(2)} total billed</div>`;
+  } catch(e) {
+    document.getElementById("historyBody").innerHTML = `<div class="form-error" style="padding:20px">Failed to load history: ${esc(e.message)}</div>`;
+  }
+}
+
+// ─── Print Receipt ────────────────────────────────────────────────────────────
+function printReceipt() {
+  const body = document.getElementById("receiptBody").innerHTML;
+  const w = window.open("", "_blank");
+  w.document.write(`<!DOCTYPE html><html><head><title>Imdaad Receipt</title>
+    <style>body{font-family:monospace;padding:20px;background:#fff;color:#000}
+    table{width:100%;border-collapse:collapse}td{padding:6px 0;border-bottom:1px solid #eee}
+    .receipt-row{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #eee}
+    .receipt-key{color:#666;font-size:12px}.receipt-val{font-weight:bold;font-size:12px}
+    .receipt-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px}
+    .kpi{text-align:center;padding:10px;border:1px solid #eee;border-radius:4px}
+    .kpi-label{font-size:10px;color:#666;margin-bottom:4px}.kpi-value{font-size:18px;font-weight:bold}
+    h2{text-align:center;margin-bottom:16px}</style>
+    </head><body>
+    <h2>Imdaad WastePro — Receipt</h2>${body}
+    <script>window.onload=()=>window.print()<\/script>
+    </body></html>`);
+  w.document.close();
 }
 
 // ─── Modal helpers ────────────────────────────────────────────────────────────

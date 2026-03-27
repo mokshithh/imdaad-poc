@@ -77,11 +77,36 @@ app.get("/api/customers", async (req, res) => {
   res.json(data);
 });
 
+// GET /api/customers/export  — CSV download
+app.get("/api/customers/export", async (req, res) => {
+  const { data, error } = await supabase.from("customers").select("*").order("created_at", { ascending: false });
+  if (error) return res.status(500).json({ error: error.message });
+  const rows = [
+    ["ID","QR ID","Name","Phone","Wallet Balance (AED)","Created At"],
+    ...data.map(c => [c.id, c.qr_id, c.name, c.phone, parseFloat(c.wallet_balance).toFixed(2), c.created_at])
+  ];
+  const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n");
+  res.setHeader("Content-Type", "text/csv");
+  res.setHeader("Content-Disposition", `attachment; filename="imdaad-customers-${new Date().toISOString().slice(0,10)}.csv"`);
+  res.send(csv);
+});
+
 // GET /api/customers/qr/:qrId
 app.get("/api/customers/qr/:qrId", async (req, res) => {
   const { data, error } = await supabase.from("customers").select("*").eq("qr_id", req.params.qrId).single();
   if (error || !data) return res.status(404).json({ error: "Customer not found" });
   res.json(data);
+});
+
+// GET /api/customers/:id/transactions  — transaction history for one customer
+app.get("/api/customers/:id/transactions", async (req, res) => {
+  const { data, error } = await supabase
+    .from("transactions").select("*")
+    .eq("customer_id", req.params.id)
+    .order("timestamp", { ascending: false })
+    .limit(parseInt(req.query.limit) || 100);
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ count: data.length, transactions: data });
 });
 
 // GET /api/customers/:id
@@ -165,6 +190,63 @@ app.post("/api/collections", async (req, res) => {
     wallet:      { balanceBefore: balBefore, balanceAfter: balAfter, deducted: amount },
     receipt:     receipt(saved, customer, wallet),
   });
+});
+
+// GET /api/stats  — dashboard summary
+app.get("/api/stats", async (req, res) => {
+  const [txRes, cxRes] = await Promise.all([
+    supabase.from("transactions").select("amount,weight_kg,timestamp,status"),
+    supabase.from("customers").select("wallet_balance"),
+  ]);
+  if (txRes.error || cxRes.error) return res.status(500).json({ error: "Failed to load stats" });
+  const txs = txRes.data;
+  const cxs = cxRes.data;
+  const today = new Date().toISOString().slice(0,10);
+  // Last 7 days daily revenue
+  const daily = {};
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(); d.setDate(d.getDate() - i);
+    daily[d.toISOString().slice(0,10)] = { revenue: 0, weight: 0, collections: 0 };
+  }
+  txs.forEach(t => {
+    const day = t.timestamp?.slice(0,10);
+    if (daily[day]) {
+      daily[day].revenue += parseFloat(t.amount) || 0;
+      daily[day].weight  += parseFloat(t.weight_kg) || 0;
+      daily[day].collections++;
+    }
+  });
+  res.json({
+    totalCollections: txs.length,
+    totalRevenue:     txs.reduce((s,t) => s + (parseFloat(t.amount)||0), 0).toFixed(2),
+    totalWeight:      txs.reduce((s,t) => s + (parseFloat(t.weight_kg)||0), 0).toFixed(2),
+    todayCollections: txs.filter(t => t.timestamp?.startsWith(today)).length,
+    totalCustomers:   cxs.length,
+    totalWalletFunds: cxs.reduce((s,c) => s + (parseFloat(c.wallet_balance)||0), 0).toFixed(2),
+    lowBalanceCount:  cxs.filter(c => parseFloat(c.wallet_balance) < 10).length,
+    daily: Object.entries(daily).map(([date, v]) => ({ date, ...v })),
+  });
+});
+
+// GET /api/collections/export  — CSV download
+app.get("/api/collections/export", async (req, res) => {
+  let q = supabase.from("transactions").select("*").order("timestamp", { ascending: false });
+  if (req.query.customerId) q = q.eq("customer_id", req.query.customerId);
+  const { data, error } = await q;
+  if (error) return res.status(500).json({ error: error.message });
+  const rows = [
+    ["Invoice ID","Customer Name","Phone","Weight (kg)","Rate (AED/kg)","Amount (AED)","Wallet Before","Wallet After","Status","Timestamp","Notes"],
+    ...data.map(t => [
+      t.invoice_id, t.customer_name, t.customer_phone||"",
+      parseFloat(t.weight_kg).toFixed(3), parseFloat(t.price_per_kg).toFixed(2),
+      parseFloat(t.amount).toFixed(2), parseFloat(t.balance_before).toFixed(2),
+      parseFloat(t.balance_after).toFixed(2), t.status, t.timestamp, t.notes||""
+    ])
+  ];
+  const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(",")).join("\n");
+  res.setHeader("Content-Type", "text/csv");
+  res.setHeader("Content-Disposition", `attachment; filename="imdaad-transactions-${new Date().toISOString().slice(0,10)}.csv"`);
+  res.send(csv);
 });
 
 // GET /api/collections
