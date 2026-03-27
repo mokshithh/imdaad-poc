@@ -13,8 +13,7 @@ const ALLOW_NEGATIVE = false;
 
 // ─── Validate env ──────────────────────────────────────────────────────────
 if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_KEY) {
-  console.error("ERROR: SUPABASE_URL and SUPABASE_SERVICE_KEY are required.");
-  process.exit(1);
+  console.error("WARNING: SUPABASE_URL and SUPABASE_SERVICE_KEY are not set. API calls will fail.");
 }
 
 // ─── Supabase ──────────────────────────────────────────────────────────────
